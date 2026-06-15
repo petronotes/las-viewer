@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LAS Viewer — Планшет ГИС</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="light"]{
+  --bg:#f7f6f2;--surf:#f0eeea;--surf2:#e8e5e0;
+  --border:rgba(0,0,0,0.10);--div:#d4d1ca;
+  --text:#28251d;--muted:#7a7974;--faint:#bab9b4;
+  --pri:#01696f;--pri-h:#0c4e54;--pri-hl:rgba(1,105,111,0.10);
+  --err:#a12c7b;--gold:#d19900;
+  --sh-sm:0 1px 2px rgba(0,0,0,.06);--sh-md:0 4px 12px rgba(0,0,0,.08);--sh-lg:0 12px 32px rgba(0,0,0,.14);
+  --r-sm:.375rem;--r-md:.5rem;--r-lg:.75rem;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+  --tr:180ms cubic-bezier(.16,1,.3,1);
+}
+[data-theme="dark"]{
+  --bg:#0f0e0c;--surf:#171614;--surf2:#1e1d1b;
+  --border:rgba(255,255,255,.07);--div:#2a2927;
+  --text:#cdccca;--muted:#797876;--faint:#4a4947;
+  --pri:#4f98a3;--pri-h:#227f8b;--pri-hl:rgba(79,152,163,.08);
+  --err:#d163a7;--gold:#e8af34;
+  --sh-sm:0 1px 2px rgba(0,0,0,.25);--sh-md:0 4px 12px rgba(0,0,0,.35);--sh-lg:0 12px 32px rgba(0,0,0,.45);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+body{min-height:100dvh;font-family:var(--font);font-size:14px;color:var(--text);background:var(--bg);line-height:1.5}
+button{cursor:pointer;background:none;border:none;font:inherit;color:inherit}
+input,select{font:inherit;color:inherit;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);padding:2px 5px;font-size:11px;transition:border-color var(--tr)}
+input:focus,select:focus{outline:none;border-color:var(--pri)}
+input[type=color]{padding:1px 2px;height:22px;width:30px;cursor:pointer;border-radius:3px}
+input[type=checkbox]{accent-color:var(--pri);cursor:pointer}
+img,canvas,svg{display:block;max-width:100%}
+
+/* LAYOUT */
+.app{display:grid;grid-template-rows:auto 1fr;grid-template-columns:295px 1fr;height:100dvh;
+  grid-template-areas:"topbar topbar""sidebar main"}
+
+/* TOPBAR */
+.topbar{grid-area:topbar;display:flex;align-items:center;gap:10px;padding:7px 14px;
+  background:var(--surf);border-bottom:1px solid var(--border);box-shadow:var(--sh-sm);z-index:100}
+.logo{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.logo svg{width:24px;height:24px;color:var(--pri)}
+.logo-text{font-weight:700;font-size:14px;letter-spacing:-.02em}
+.logo-sub{font-size:10px;color:var(--muted);font-family:var(--mono)}
+.well-tabs{display:flex;gap:4px;flex:1;overflow-x:auto}
+.well-tab{padding:3px 10px;border-radius:var(--r-sm);font-size:11px;font-weight:500;cursor:pointer;
+  transition:all var(--tr);color:var(--muted);border:1px solid transparent;white-space:nowrap;flex-shrink:0}
+.well-tab.active{background:var(--pri);color:#fff}
+.well-tab:not(.active):hover{background:var(--surf2);color:var(--text);border-color:var(--border)}
+.topbar-right{display:flex;align-items:center;gap:7px;flex-shrink:0}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:var(--r-md);
+  font-size:12px;font-weight:500;transition:all var(--tr);cursor:pointer}
+.btn-primary{background:var(--pri);color:#fff}
+.btn-primary:hover{background:var(--pri-h)}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--surf2);color:var(--text)}
+.btn-sm{padding:2px 8px;font-size:10px}
+.btn-icon{padding:5px;border-radius:var(--r-md);color:var(--muted)}
+.btn-icon:hover{background:var(--surf2);color:var(--text)}
+
+/* SIDEBAR */
+.sidebar{grid-area:sidebar;display:flex;flex-direction:column;background:var(--surf);
+  border-right:1px solid var(--border);overflow-y:auto}
+.ss{padding:9px 10px 7px}
+.ss+.ss{border-top:1px solid var(--div)}
+.ss-lbl{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;
+  margin-bottom:7px;display:flex;align-items:center;justify-content:space-between;gap:4px}
+
+/* DROP ZONE */
+.dz{border:2px dashed var(--border);border-radius:var(--r-lg);padding:14px 8px;text-align:center;
+  cursor:pointer;transition:all var(--tr);background:var(--bg)}
+.dz:hover,.dz.over{border-color:var(--pri);background:var(--pri-hl)}
+.dz-icon{margin:0 auto 6px;color:var(--faint);width:26px;height:26px}
+.dz-txt{font-size:11px;color:var(--muted)}
+.dz-txt b{color:var(--pri);display:block;font-size:12px;margin-bottom:1px}
+.file-list{display:flex;flex-direction:column;gap:4px;margin-top:7px}
+.fi{display:flex;align-items:center;gap:5px;padding:4px 7px;border-radius:var(--r-md);
+  background:var(--surf2);border:1px solid var(--border);font-size:11px}
+.fi-nm{flex:1;font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fi-bx{padding:1px 4px;border-radius:var(--r-sm);font-size:10px;font-weight:700;
+  background:var(--pri-hl);color:var(--pri)}
+.xbtn{padding:2px;border-radius:3px;color:var(--faint);line-height:0;cursor:pointer}
+.xbtn:hover{color:var(--err);background:rgba(161,44,123,.12)}
+
+/* CONTROLS */
+.cr{display:flex;align-items:center;justify-content:space-between;gap:5px;margin-bottom:4px}
+.cr-l{font-size:11px;color:var(--muted);flex-shrink:0}
+.cr input[type=number],.cr select{width:88px}
+.cr select.full{flex:1;width:auto}
+
+/* CORE PHOTO */
+.core-dz{border:2px dashed var(--border);border-radius:var(--r-md);padding:10px 6px;text-align:center;
+  cursor:pointer;transition:all var(--tr);font-size:11px;color:var(--muted)}
+.core-dz:hover,.core-dz.over{border-color:var(--pri);background:var(--pri-hl)}
+.core-thumb{position:relative;margin-top:7px;border-radius:var(--r-md);overflow:hidden;background:var(--surf2);
+  border:1px solid var(--border)}
+.core-thumb img{width:100%;height:90px;object-fit:cover;display:block}
+.core-thumb-del{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);border-radius:50%;
+  padding:3px;color:#fff;cursor:pointer;line-height:0}
+
+/* RESERVOIRS */
+.res-list{display:flex;flex-direction:column;gap:5px}
+.res-card{background:var(--surf2);border:1px solid var(--border);border-radius:var(--r-md);padding:6px 8px;
+  display:flex;flex-direction:column;gap:4px}
+.res-card-top{display:flex;align-items:center;gap:6px}
+.res-type-btns{display:flex;gap:3px;flex:1}
+.rtb{padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;cursor:pointer;
+  border:2px solid transparent;transition:all var(--tr);opacity:.55}
+.rtb.active{opacity:1;border-color:rgba(255,255,255,.3);box-shadow:0 0 0 1px rgba(0,0,0,.15)}
+.rtb-oil{background:rgba(203,153,0,.35);color:#c89000}
+.rtb-wat{background:rgba(29,138,180,.35);color:#1d8ab4}
+.rtb-gas{background:rgba(247,239,2,.35);color:#b8b100}
+.res-depths{display:flex;align-items:center;gap:4px}
+.res-dep-inp{width:60px;font-size:11px;font-family:var(--mono)}
+/* spin drag cursor */
+.res-dep-inp{cursor:ns-resize}
+
+/* TRACKS */
+.track-config{display:flex;flex-direction:column;gap:5px}
+.tr-item{background:var(--surf2);border:1px solid var(--border);border-radius:var(--r-md);padding:7px;
+  display:flex;flex-direction:column;gap:5px}
+.tr-hdr-row{display:flex;align-items:center;gap:4px}
+.tr-name-inp{flex:1;font-family:var(--mono);font-size:11px;font-weight:600;background:transparent;
+  border:1px solid transparent;border-radius:3px;padding:1px 4px;transition:border-color var(--tr)}
+.tr-name-inp:hover{border-color:var(--border)}
+.tr-name-inp:focus{border-color:var(--pri);background:var(--bg);outline:none}
+.cv-block{background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);padding:5px;
+  display:flex;flex-direction:column;gap:3px}
+.cv-row1{display:flex;align-items:center;gap:4px}
+.cv-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.cv-sel{flex:1;font-size:11px}
+.cv-row2{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.cv-mm{width:50px;font-size:10px}
+.cv-log{display:flex;align-items:center;gap:3px;font-size:10px;color:var(--faint)}
+
+/* PRESET */
+.preset-row{display:flex;gap:5px;margin-top:5px}
+
+/* MAIN */
+.main{grid-area:main;display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
+.main-tb{display:flex;align-items:center;gap:8px;padding:5px 14px;border-bottom:1px solid var(--border);
+  background:var(--surf);flex-shrink:0;flex-wrap:wrap}
+.tb-info{font-size:11px;color:var(--muted);font-family:var(--mono)}
+.plot-wrap{flex:1;overflow:auto;padding:10px 14px}
+.plot-cont{display:flex;background:var(--surf);border-radius:var(--r-lg);
+  border:1px solid var(--border);box-shadow:var(--sh-md);overflow:hidden}
+.empty-st{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;
+  gap:12px;padding:60px;text-align:center}
+.empty-st h3{font-size:18px}.empty-st p{font-size:13px;color:var(--muted);max-width:34ch}
+.legend{display:flex;flex-wrap:wrap;gap:8px;padding:5px 14px;border-top:1px solid var(--border);
+  background:var(--surf);flex-shrink:0;font-size:11px;align-items:center}
+.leg-it{display:flex;align-items:center;gap:4px}
+.leg-ln{width:18px;height:2px;border-radius:1px}
+.leg-bx{width:10px;height:10px;border-radius:2px}
+
+/* CURSOR HIT for reservoir placement */
+.plot-cont.placing{cursor:crosshair}
+
+/* TOAST */
+.toast{position:fixed;bottom:18px;right:18px;background:var(--surf);border:1px solid var(--border);
+  border-radius:var(--r-lg);padding:9px 15px;box-shadow:var(--sh-lg);font-size:13px;
+  display:none;z-index:9999;max-width:300px}
+.toast.show{display:block;animation:su .25s ease}
+@keyframes su{from{transform:translateY(6px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header class="topbar">
+  <div class="logo">
+    <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8">
+      <rect x="4" y="2" width="14" height="24" rx="2"/>
+      <line x1="8" y1="7" x2="20" y2="7"/><line x1="8" y1="12" x2="22" y2="10"/>
+      <line x1="8" y1="17" x2="24" y2="18"/><line x1="8" y1="22" x2="21" y2="21"/>
+      <path d="M20 2h6v6" stroke-linecap="round" stroke-linejoin="round"/>
+      <line x1="20" y1="2" x2="26" y2="8" stroke-linecap="round"/>
+    </svg>
+    <div><div class="logo-text">LAS Viewer</div><div class="logo-sub">Планшет ГИС</div></div>
+  </div>
+  <div class="well-tabs" id="wellTabs"></div>
+  <div class="topbar-right">
+    <button class="btn btn-primary" id="btnExport">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      PNG
+    </button>
+    <button class="btn-icon" id="btnTheme" title="Тема">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+  </div>
+</header>
+
+<aside class="sidebar">
+
+  <!-- LAS FILES -->
+  <div class="ss">
+    <div class="ss-lbl">LAS-файлы</div>
+    <div class="dz" id="dropzone" role="button" tabindex="0">
+      <div class="dz-icon"><svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 20V10"/><polyline points="9 14 14 9 19 14"/><path d="M24 18v2a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-2"/></svg></div>
+      <div class="dz-txt"><b>Перетащите LAS-файлы</b>или нажмите для выбора</div>
+    </div>
+    <input type="file" id="fileInput" accept=".las,.LAS" multiple style="display:none">
+    <div class="file-list" id="fileList"></div>
+  </div>
+
+  <!-- CORE PHOTO -->
+  <div class="ss">
+    <div class="ss-lbl">Фото керна (1-й трек)</div>
+    <div class="core-dz" id="coreDz" role="button" tabindex="0">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="margin:0 auto 4px"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      Нажмите для загрузки фото
+    </div>
+    <input type="file" id="coreInput" accept="image/*" style="display:none">
+    <div id="coreThumbWrap"></div>
+    <div id="coreDepthRow" style="display:none;margin-top:6px">
+      <div class="cr"><span class="cr-l">Кровля (м)</span><input type="number" id="coreTop" step="0.2" style="width:88px"></div>
+      <div class="cr"><span class="cr-l">Подошва (м)</span><input type="number" id="coreBot" step="0.2" style="width:88px"></div>
+    </div>
+  </div>
+
+  <!-- DEPTH -->
+  <div class="ss">
+    <div class="ss-lbl">Глубина</div>
+    <div class="cr"><span class="cr-l">Кровля (м)</span><input type="number" id="depthTop" placeholder="авто" step="1"></div>
+    <div class="cr"><span class="cr-l">Подошва (м)</span><input type="number" id="depthBot" placeholder="авто" step="1"></div>
+    <div class="cr"><span class="cr-l">Масштаб</span>
+      <select id="depthScale">
+        <option value="200">1:200</option>
+        <option value="500" selected>1:500</option>
+        <option value="1000">1:1000</option>
+        <option value="2000">1:2000</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- RESERVOIRS -->
+  <div class="ss">
+    <div class="ss-lbl">
+      Коллекторы
+      <div style="display:flex;gap:4px;align-items:center">
+        <label style="display:flex;align-items:center;gap:3px;font-size:10px;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:0">
+          <input type="checkbox" id="chkRes" checked style="width:12px;height:12px">Показать
+        </label>
+        <button class="btn btn-ghost btn-sm" id="btnAddRes">+ Добавить</button>
+      </div>
+    </div>
+    <div class="res-list" id="resList"></div>
+    <div style="font-size:10px;color:var(--faint);margin-top:5px">💡 Нажмите на планшет чтобы поставить коллектор. Тяните поле глубины мышью ↕</div>
+  </div>
+
+  <!-- TRACKS -->
+  <div class="ss" style="flex:1">
+    <div class="ss-lbl">Треки
+      <div style="display:flex;gap:2px;align-items:center">
+        <button class="btn-icon" id="btnExportPreset" title="Сохранить конфигурацию" style="padding:3px;color:var(--muted)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
+        <label class="btn-icon" title="Загрузить конфигурацию" style="padding:3px;cursor:pointer;color:var(--muted)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 14 12 9 17 14"/><line x1="12" y1="9" x2="12" y2="21"/></svg>
+          <input type="file" id="presetInput" accept=".txt,.json" style="display:none">
+        </label>
+        <button class="btn btn-ghost btn-sm" id="btnAddTrack">+ трек</button>
+      </div>
+    </div>
+    <div class="track-config" id="trackConfig"></div>
+  </div>
+
+</aside>
+
+<main class="main">
+  <div class="main-tb" id="mainTb" style="display:none">
+    <span class="tb-info" id="tbInfo"></span>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:7px">
+      <span style="font-size:11px;color:var(--muted)">Y:</span>
+      <input type="range" id="zoomY" min="0.3" max="6" step="0.1" value="1" style="width:80px;accent-color:var(--pri)">
+      <span id="zoomYVal" style="font-size:11px;color:var(--muted);width:28px">×1.0</span>
+    </div>
+  </div>
+
+  <div id="plotArea" class="plot-wrap">
+    <div class="empty-st" id="emptyState">
+      <svg width="56" height="56" viewBox="0 0 60 60" fill="none" stroke="currentColor" stroke-width="1.3" opacity=".3">
+        <rect x="8" y="4" width="28" height="52" rx="3"/>
+        <line x1="16" y1="14" x2="42" y2="12"/><line x1="16" y1="22" x2="44" y2="24"/>
+        <line x1="16" y1="30" x2="46" y2="33"/><line x1="16" y1="38" x2="44" y2="40"/>
+      </svg>
+      <h3>Загрузите LAS-файлы</h3>
+      <p>Перетащите файлы в панель слева или нажмите на область загрузки</p>
+    </div>
+  </div>
+
+
+</main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ════════════════════════════════════════════════════════════
+   LAS VIEWER v3
+   ════════════════════════════════════════════════════════════ */
+
+const S = {
+  wells: {}, activeWell: null,
+  tracks: [], tSeq: 0,
+  reservoirs: [], rSeq: 0,
+  zoomY: 1.0,
+  coreImg: null,   // { dataURL, top, bot }
+  placing: false,  // click-to-place reservoir mode
+};
+
+const SAT = {
+  oil: { label:'нефть', r:203, g:153, b:0 },
+  wat: { label:'вода',  r:29,  g:138, b:180 },
+  gas: { label:'газ',   r:247, g:239, b:2 },
+};
+function satColor(type, a=0.30) {
+  const s=SAT[type]||SAT.oil;
+  return `rgba(${s.r},${s.g},${s.b},${a})`;
+}
+
+const CC = [
+  '#4f98a3','#e8af34','#d163a7','#6daa45',
+  '#bb653b','#4a9fd4','#a86fdf','#fdab43',
+  '#dd6974','#98d88a','#c8a86b','#7a9fc0',
+];
+
+/* ── LAS PARSER ─────────────────────────────────────────── */
+function parseLAS(text) {
+  const lines = text.replace(/\r/g,'').split('\n');
+  let sec='';
+  const hdr={well:'Unknown', dept_units:'м', depth_step:null};
+  const cdefs=[], rawData=[];
+  for (const raw of lines) {
+    const ln=raw.trim();
+    if (!ln||ln.startsWith('#')) continue;
+    if (ln.startsWith('~')) {
+      const c=ln[1].toUpperCase();
+      sec=c==='V'?'V':c==='W'?'W':c==='C'?'C':c==='A'?'A':'';
+      continue;
+    }
+    if (sec==='W') {
+      const m=ln.match(/^(\S+)\s*\.\s*(\S*)\s+(.*?)\s*:/);
+      if (m) {
+        const mn=m[1].toUpperCase(),val=m[3].trim();
+        if (mn==='WELL') hdr.well=val||'Unknown';
+        if (mn==='STEP') hdr.depth_step=parseFloat(val);
+        if (mn==='DEPT'||mn==='DEPTH') hdr.dept_units=m[2]||'м';
+      }
+    }
+    if (sec==='C') {
+      const m=ln.match(/^(\S+)\s*\.\s*(\S*)\s+(.*?)\s*:/);
+      if (m) cdefs.push({name:m[1].toUpperCase(), units:m[2]});
+    }
+    if (sec==='A') {
+      const nums=ln.trim().split(/\s+/).map(Number);
+      if (nums.length&&!isNaN(nums[0])) rawData.push(nums);
+    }
+  }
+  if (!cdefs.length||!rawData.length) return null;
+  const dIdx=Math.max(0,cdefs.findIndex(c=>['DEPT','DEPTH','MD','DEPT.','DEPTH.'].includes(c.name)));
+  const curves={};
+  cdefs.forEach(d=>{curves[d.name]={units:d.units,values:[]};});
+  const NV=[-9999,-9999.25,-999.25,-999,-9998,-9999.00,-999.00];
+  for (const row of rawData) {
+    cdefs.forEach((d,i)=>{
+      const v=row[i]!==undefined?row[i]:NaN;
+      curves[d.name].values.push(NV.some(nv=>Math.abs(v-nv)<0.5)?NaN:v);
+    });
+  }
+  hdr.depth_curve=cdefs[dIdx].name;
+  return {hdr,curves};
+}
+
+/* ── FILE LOAD ──────────────────────────────────────────── */
+function loadFile(file) {
+  const r=new FileReader();
+  r.onload=e=>{
+    const p=parseLAS(e.target.result);
+    if (!p){toast('⚠ Не удалось разобрать: '+file.name);return;}
+    const key=file.name;
+    S.wells[key]={...p,filename:key};
+    updateFileList();
+    if (!S.activeWell){S.activeWell=key;buildDefaultTracks();}
+    renderTrackConfig();renderPlot();
+    toast('✓ '+file.name+' ('+Object.keys(p.curves).length+' кривых)');
+  };
+  r.readAsText(file);
+}
+
+/* ── ALIASES ────────────────────────────────────────────── */
+const AL={
+  GR:['GR','GAM','GRS','GK','SGR','HCGR','GRC'],
+  RESIST:['RT','ILD','ILM','RLLD','MSFL','LLD','LLS','RS','RD','RILD','RILM','AT90','AT10','AT30','RES','RESD'],
+  DENSITY:['RHOB','ZDEN','DEN','RHOZ','RHO','DENS','DEN_',],
+  NEUTRON:['NPHI','TNPH','PHIN','NEUT','CN','NPOR','CNL'],
+  SONIC:['DT','DTCO','DTS','AC','DTP','DT4P','DT4S'],
+  SP:['SP','SPS'],
+};
+function findC(curves,aliases){
+  const keys=Object.keys(curves);
+  for (const a of aliases){
+    const f=keys.find(k=>k===a||k.startsWith(a+'_')||k.startsWith(a+'.'));
+    if (f) return f;
+    // case-insensitive fallback
+    const fi=keys.find(k=>k.toUpperCase()===a.toUpperCase());
+    if (fi) return fi;
+  }
+  return null;
+}
+
+/* ── DEFAULT TRACKS ─────────────────────────────────────── */
+function buildDefaultTracks(){
+  S.tracks=[];S.tSeq=0;
+  if (!S.activeWell) return;
+  const {curves}=S.wells[S.activeWell];
+  const gr=findC(curves,AL.GR),sp=findC(curves,AL.SP);
+  const rt=findC(curves,AL.RESIST);
+  const rho=findC(curves,AL.DENSITY),nphi=findC(curves,AL.NEUTRON);
+  const dt=findC(curves,AL.SONIC);
+  if (gr||sp){
+    const cs=[];
+    if(gr) cs.push({name:gr,color:CC[0],logScale:false,min:0,max:150});
+    if(sp) cs.push({name:sp,color:CC[7],logScale:false,min:-150,max:50});
+    addTrack('ПС/ГК',cs);
+  }
+  if (rt) addTrack('УЭС',[{name:rt,color:CC[3],logScale:true,min:0.2,max:2000}]);
+  if (rho||nphi){
+    const cs=[];
+    if(rho) cs.push({name:rho,color:CC[1],logScale:false,min:1.8,max:2.9});
+    if(nphi) cs.push({name:nphi,color:CC[2],logScale:false,min:0.45,max:-0.05});
+    addTrack('ГГМ/НМ',cs);
+  }
+  if (dt) addTrack('АМ',[{name:dt,color:CC[4],logScale:false,min:40,max:140}]);
+  if (!S.tracks.length){
+    const dc=S.wells[S.activeWell].hdr.depth_curve;
+    Object.keys(curves).filter(k=>k!==dc).slice(0,3).forEach((k,i)=>{
+      addTrack(k,[{name:k,color:CC[i%CC.length],logScale:false,min:null,max:null}]);
+    });
+  }
+}
+function addTrack(label,curves){S.tracks.push({id:++S.tSeq,label,curves});}
+
+/* ── FILE LIST ──────────────────────────────────────────── */
+function updateFileList(){
+  const fl=document.getElementById('fileList'),wt=document.getElementById('wellTabs');
+  fl.innerHTML='';wt.innerHTML='';
+  Object.keys(S.wells).forEach(key=>{
+    const w=S.wells[key],n=Object.keys(w.curves).length;
+    const d=document.createElement('div');d.className='fi';
+    d.innerHTML=`<span class="fi-nm" title="${key}">${key}</span><span class="fi-bx">${n}</span>
+      <button class="xbtn" data-key="${key}"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`;
+    fl.appendChild(d);
+    const tab=document.createElement('button');
+    tab.className='well-tab'+(key===S.activeWell?' active':'');
+    tab.textContent=w.hdr.well||key.replace(/\.las$/i,'');
+    tab.dataset.key=key;wt.appendChild(tab);
+  });
+}
+document.getElementById('fileList').addEventListener('click',e=>{
+  const btn=e.target.closest('[data-key]');if(!btn)return;
+  const key=btn.dataset.key;delete S.wells[key];
+  if(S.activeWell===key)S.activeWell=Object.keys(S.wells)[0]||null;
+  updateFileList();renderTrackConfig();renderPlot();
+});
+document.getElementById('wellTabs').addEventListener('click',e=>{
+  const t=e.target.closest('[data-key]');if(!t)return;
+  S.activeWell=t.dataset.key;buildDefaultTracks();
+  updateFileList();renderTrackConfig();renderPlot();
+});
+
+/* ── CORE PHOTO ─────────────────────────────────────────── */
+const coreDz=document.getElementById('coreDz'),coreInp=document.getElementById('coreInput');
+coreDz.addEventListener('click',()=>coreInp.click());
+coreDz.addEventListener('dragover',e=>{e.preventDefault();coreDz.classList.add('over');});
+coreDz.addEventListener('dragleave',()=>coreDz.classList.remove('over'));
+coreDz.addEventListener('drop',e=>{e.preventDefault();coreDz.classList.remove('over');const f=e.dataTransfer.files[0];if(f&&f.type.startsWith('image/'))loadCoreImg(f);});
+coreInp.addEventListener('change',e=>{if(e.target.files[0])loadCoreImg(e.target.files[0]);coreInp.value='';});
+function loadCoreImg(file){
+  const r=new FileReader();
+  r.onload=e=>{
+    const p=getPlotParams();
+    const mid=p?Math.round((p.minD+p.maxD)/2):2000;
+    S.coreImg={dataURL:e.target.result,top:mid-20,bot:mid+20};
+    document.getElementById('coreTop').value=S.coreImg.top;
+    document.getElementById('coreBot').value=S.coreImg.bot;
+    renderCoreThumb();renderPlot();
+  };
+  r.readAsDataURL(file);
+}
+function renderCoreThumb(){
+  const wrap=document.getElementById('coreThumbWrap'),dr=document.getElementById('coreDepthRow');
+  if(!S.coreImg){wrap.innerHTML='';dr.style.display='none';return;}
+  dr.style.display='block';
+  wrap.innerHTML=`<div class="core-thumb"><img src="${S.coreImg.dataURL}" alt="керн">
+    <button class="core-thumb-del" id="coreDelBtn"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>`;
+  document.getElementById('coreDelBtn').addEventListener('click',()=>{
+    S.coreImg=null;renderCoreThumb();renderPlot();
+  });
+}
+['coreTop','coreBot'].forEach(id=>{
+  document.getElementById(id).addEventListener('change',e=>{
+    if(S.coreImg){S.coreImg[id==='coreTop'?'top':'bot']=parseFloat(e.target.value)||0;renderPlot();}
+  });
+});
+
+/* ── RESERVOIR UI ───────────────────────────────────────── */
+function renderResList(){
+  const list=document.getElementById('resList');
+  list.innerHTML='';
+  S.reservoirs.forEach((res,ri)=>{
+    const card=document.createElement('div');card.className='res-card';
+    card.innerHTML=`
+      <div class="res-card-top">
+        <div class="res-type-btns">
+          ${['oil','wat','gas'].map(t=>`<button class="rtb rtb-${t}${res.type===t?' active':''}" data-ri="${ri}" data-t="${t}">${SAT[t].label}</button>`).join('')}
+        </div>
+        <button class="xbtn" data-ri="${ri}" data-act="del"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="res-depths">
+        <span style="font-size:10px;color:var(--faint)">↑</span>
+        <input type="number" class="res-dep-inp" value="${res.top}" step="0.2" data-ri="${ri}" data-f="top" title="Тяните вверх/вниз для изменения (0.2м)">
+        <span style="font-size:10px;color:var(--faint)">↓</span>
+        <input type="number" class="res-dep-inp" value="${res.bot}" step="0.2" data-ri="${ri}" data-f="bot" title="Тяните вверх/вниз для изменения (0.2м)">
+      </div>`;
+    list.appendChild(card);
+  });
+  // type buttons
+  list.querySelectorAll('.rtb').forEach(btn=>{
+    btn.addEventListener('click',e=>{
+      const ri=+btn.dataset.ri,t=btn.dataset.t;
+      S.reservoirs[ri].type=t;renderResList();renderPlot();
+    });
+  });
+  // delete
+  list.querySelectorAll('[data-act="del"]').forEach(btn=>{
+    btn.addEventListener('click',()=>{S.reservoirs.splice(+btn.dataset.ri,1);renderResList();renderPlot();});
+  });
+  // drag to change depth
+  list.querySelectorAll('.res-dep-inp').forEach(inp=>{
+    let startY,startVal;
+    inp.addEventListener('mousedown',e=>{
+      e.preventDefault();
+      startY=e.clientY;startVal=parseFloat(inp.value)||0;
+      const ri=+inp.dataset.ri,f=inp.dataset.f;
+      function onMove(ev){
+        const dy=startY-ev.clientY; // up = positive depth increase? No: up = smaller depth
+        // drag up → decrease depth, drag down → increase depth
+        const delta=(-dy/6)*0.2; // 6px per 0.2m step
+        const rounded=Math.round((startVal+delta)/0.2)*0.2;
+        inp.value=rounded.toFixed(1);
+        S.reservoirs[ri][f]=rounded;
+        renderPlot();
+      }
+      function onUp(){document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);renderResList();}
+      document.addEventListener('mousemove',onMove);
+      document.addEventListener('mouseup',onUp);
+    });
+    inp.addEventListener('change',e=>{
+      S.reservoirs[+inp.dataset.ri][inp.dataset.f]=parseFloat(e.target.value)||0;
+      renderPlot();
+    });
+  });
+}
+
+document.getElementById('btnAddRes').addEventListener('click',()=>{
+  const p=getPlotParams();
+  const mid=p?Math.round((p.minD+p.maxD)/2):2000;
+  S.reservoirs.push({id:++S.rSeq,top:mid-5,bot:mid+5,type:'oil'});
+  renderResList();renderPlot();
+});
+document.getElementById('chkRes').addEventListener('change',renderPlot);
+
+/* ── CLICK-ON-PLOT TO PLACE RESERVOIR ───────────────────── */
+document.getElementById('plotArea').addEventListener('click',e=>{
+  const pc=document.getElementById('plotCont');
+  if(!pc) return;
+  const p=getPlotParams();if(!p)return;
+  // Find depth track canvas - first canvas in plot
+  const dc=pc.querySelector('canvas');if(!dc)return;
+  const rect=pc.getBoundingClientRect();
+  const y=e.clientY-rect.top-HEADER_H;
+  if(y<0||y>p.plotH)return;
+  const depth=p.minD+y/p.pxPerM;
+  const rounded=Math.round(depth/0.2)*0.2;
+  S.reservoirs.push({id:++S.rSeq,top:+(rounded-5).toFixed(1),bot:+(rounded+5).toFixed(1),type:'oil'});
+  renderResList();renderPlot();
+  toast('Коллектор добавлен на '+rounded.toFixed(1)+' м');
+});
+
+/* ── TRACK CONFIG UI ────────────────────────────────────── */
+function renderTrackConfig(){
+  const con=document.getElementById('trackConfig');con.innerHTML='';
+  const wc=S.activeWell?Object.keys(S.wells[S.activeWell].curves):[];
+  S.tracks.forEach((tr,ti)=>{
+    const div=document.createElement('div');div.className='tr-item';
+    const hdr=document.createElement('div');hdr.className='tr-hdr-row';
+    hdr.innerHTML=`<input class="tr-name-inp" value="${tr.label}" data-ti="${ti}" data-f="label">
+      <button class="xbtn" data-ti="${ti}" data-act="del"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`;
+    div.appendChild(hdr);
+    tr.curves.forEach((c,ci)=>{
+      const cb=document.createElement('div');cb.className='cv-block';
+      const opts=wc.map(n=>`<option value="${n}"${n===c.name?' selected':''}>${n}</option>`).join('');
+      cb.innerHTML=`
+        <div class="cv-row1">
+          <span class="cv-dot" style="background:${c.color}"></span>
+          <select class="cv-sel" data-ti="${ti}" data-ci="${ci}" data-f="name">${opts}</select>
+          <input type="color" value="${c.color}" data-ti="${ti}" data-ci="${ci}" data-f="color">
+          <button class="xbtn" data-ti="${ti}" data-ci="${ci}" data-act="delc"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+        <div class="cv-row2">
+          <span style="font-size:10px;color:var(--faint)">min</span>
+          <input type="number" class="cv-mm" value="${c.min!=null?c.min:''}" placeholder="авто" data-ti="${ti}" data-ci="${ci}" data-f="min">
+          <span style="font-size:10px;color:var(--faint)">max</span>
+          <input type="number" class="cv-mm" value="${c.max!=null?c.max:''}" placeholder="авто" data-ti="${ti}" data-ci="${ci}" data-f="max">
+          <label class="cv-log"><input type="checkbox" ${c.logScale?'checked':''} data-ti="${ti}" data-ci="${ci}" data-f="logScale">Лог</label>
+        </div>`;
+      div.appendChild(cb);
+    });
+    const ab=document.createElement('button');ab.className='btn btn-ghost';
+    ab.style.cssText='font-size:10px;padding:2px 7px;width:100%';ab.textContent='+ кривая';
+    ab.dataset.ti=ti;ab.dataset.act='addc';div.appendChild(ab);
+    con.appendChild(div);
+  });
+}
+
+document.getElementById('trackConfig').addEventListener('input',e=>{
+  const {ti,ci,f}=e.target.dataset;if(!f)return;
+  if(f==='label'&&ti!==undefined){S.tracks[+ti].label=e.target.value;renderPlot();return;}
+  if(ci!==undefined){
+    const c=S.tracks[+ti].curves[+ci];
+    if(f==='color'){c.color=e.target.value;const dot=e.target.closest('.cv-block')?.querySelector('.cv-dot');if(dot)dot.style.background=e.target.value;renderPlot();}
+  }
+});
+document.getElementById('trackConfig').addEventListener('change',e=>{
+  const {ti,ci,f}=e.target.dataset;if(!f)return;
+  if(ci!==undefined){
+    const c=S.tracks[+ti].curves[+ci];
+    if(f==='name')c.name=e.target.value;
+    else if(f==='logScale')c.logScale=e.target.checked;
+    else if(f==='min')c.min=e.target.value===''?null:parseFloat(e.target.value);
+    else if(f==='max')c.max=e.target.value===''?null:parseFloat(e.target.value);
+    else if(f==='color')c.color=e.target.value;
+  }
+  renderTrackConfig();renderPlot();
+});
+document.getElementById('trackConfig').addEventListener('click',e=>{
+  const btn=e.target.closest('[data-act]');if(!btn)return;
+  const {act,ti,ci}=btn.dataset;
+  if(act==='del'){S.tracks.splice(+ti,1);renderTrackConfig();renderPlot();}
+  if(act==='delc'){S.tracks[+ti].curves.splice(+ci,1);renderTrackConfig();renderPlot();}
+  if(act==='addc'){
+    const names=S.activeWell?Object.keys(S.wells[S.activeWell].curves):[];
+    const tr=S.tracks[+ti];const used=new Set(tr.curves.map(c=>c.name));
+    const next=names.find(n=>!used.has(n))||names[0]||'';
+    tr.curves.push({name:next,color:CC[tr.curves.length%CC.length],logScale:false,min:null,max:null});
+    renderTrackConfig();renderPlot();
+  }
+});
+document.getElementById('btnAddTrack').addEventListener('click',()=>{
+  const names=S.activeWell?Object.keys(S.wells[S.activeWell].curves):[];
+  const dc=S.activeWell?S.wells[S.activeWell].hdr.depth_curve:null;
+  const next=names.find(n=>n!==dc)||names[0]||'';
+  addTrack('Новый трек',[{name:next,color:CC[S.tSeq%CC.length],logScale:false,min:null,max:null}]);
+  renderTrackConfig();renderPlot();
+});
+
+/* ── PRESET SAVE/LOAD ───────────────────────────────────── */
+document.getElementById('btnExportPreset').addEventListener('click',()=>{
+  const cfg={tracks:S.tracks,reservoirs:S.reservoirs,zoomY:S.zoomY,
+    depthTop:document.getElementById('depthTop').value,
+    depthBot:document.getElementById('depthBot').value,
+    depthScale:document.getElementById('depthScale').value};
+  const blob=new Blob([JSON.stringify(cfg,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='las_config_'+(S.activeWell||'well').replace(/[^a-z0-9_]/gi,'_')+'.txt';
+  a.click();toast('✓ Конфигурация сохранена');
+});
+document.getElementById('presetInput').addEventListener('change',e=>{
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      const cfg=JSON.parse(ev.target.result);
+      if(cfg.tracks){S.tracks=cfg.tracks;S.tSeq=Math.max(0,...S.tracks.map(t=>t.id||0));}
+      if(cfg.reservoirs){S.reservoirs=cfg.reservoirs;S.rSeq=Math.max(0,...S.reservoirs.map(r=>r.id||0));}
+      if(cfg.zoomY){S.zoomY=cfg.zoomY;document.getElementById('zoomY').value=S.zoomY;document.getElementById('zoomYVal').textContent='×'+S.zoomY.toFixed(1);}
+      if(cfg.depthTop!==undefined)document.getElementById('depthTop').value=cfg.depthTop;
+      if(cfg.depthBot!==undefined)document.getElementById('depthBot').value=cfg.depthBot;
+      if(cfg.depthScale!==undefined)document.getElementById('depthScale').value=cfg.depthScale;
+      renderTrackConfig();renderResList();renderPlot();
+      toast('✓ Конфигурация загружена');
+    }catch{toast('⚠ Ошибка разбора конфига');}
+  };r.readAsText(f);e.target.value='';
+});
+
+/* ── PLOT PARAMS ────────────────────────────────────────── */
+const BASE_PPM=2, HEADER_H=60, DW=62, CW=60, TW=160;
+
+function getPlotParams(){
+  if(!S.activeWell)return null;
+  const well=S.wells[S.activeWell];
+  const dCurve=well.hdr.depth_curve;
+  const depthArr=well.curves[dCurve]?.values;
+  if(!depthArr?.length)return null;
+  const vd=depthArr.filter(v=>!isNaN(v));if(!vd.length)return null;
+  const minD=parseFloat(document.getElementById('depthTop').value)||Math.min(...vd);
+  const maxD=parseFloat(document.getElementById('depthBot').value)||Math.max(...vd);
+  const scale=parseInt(document.getElementById('depthScale').value)||500;
+  const pxPerM=(500/scale)*BASE_PPM*S.zoomY;
+  const plotH=Math.max(100,Math.round((maxD-minD)*pxPerM));
+  return{well,dCurve,depthArr,minD,maxD,pxPerM,plotH};
+}
+
+/* ── RENDER PLOT ────────────────────────────────────────── */
+function renderPlot(){
+  const plotArea=document.getElementById('plotArea');
+  plotArea.querySelectorAll('#plotCont,#emptyState').forEach(e=>e.remove());
+  if(!S.activeWell||!S.tracks.length){
+    const es=document.createElement('div');es.id='emptyState';es.className='empty-st';
+    es.innerHTML='<svg width="56" height="56" viewBox="0 0 60 60" fill="none" stroke="currentColor" stroke-width="1.3" opacity=".3"><rect x="8" y="4" width="28" height="52" rx="3"/><line x1="16" y1="14" x2="42" y2="12"/></svg><h3>Загрузите LAS-файлы</h3><p>Перетащите файлы в панель слева</p>';
+    plotArea.appendChild(es);return;
+  }
+  const p=getPlotParams();if(!p)return;
+  const{well,depthArr,minD,maxD,pxPerM,plotH}=p;
+
+  const cont=document.createElement('div');
+  cont.id='plotCont';cont.className='plot-cont';
+  cont.style.height=(plotH+HEADER_H)+'px';
+
+  // CORE PHOTO TRACK
+  if(S.coreImg){
+    const cw=mkWrap(CW);
+    const ch=mkHdr(CW,'Керн','');cw.appendChild(ch);
+    const cc=mkCanvas(CW,plotH);cw.appendChild(cc);
+    cont.appendChild(cw);
+    drawCoreTrack(cc,minD,maxD,pxPerM);
+  }
+
+  // DEPTH TRACK
+  const dw=mkWrap(DW);
+  const dhdr=mkHdr(DW,'Глубина',well.hdr.dept_units||'м');dw.appendChild(dhdr);
+  const dc=mkCanvas(DW,plotH);dw.appendChild(dc);
+  cont.appendChild(dw);
+  drawDepthAxis(dc,minD,maxD,pxPerM);
+
+  // DATA TRACKS
+  S.tracks.forEach(track=>{
+    const tw=mkWrap(TW);
+    const thdr=document.createElement('div');
+    thdr.className='tr-hdr';
+    thdr.style.cssText=`padding:4px 5px;border-bottom:1px solid var(--border);background:var(--surf2);flex-shrink:0;height:${HEADER_H}px;overflow:hidden`;
+    let srows=`<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--mono);text-align:center;margin-bottom:2px">${track.label}</div>`;
+    track.curves.forEach(c=>{
+      if(!c.name||!well.curves[c.name])return;
+      const vv=well.curves[c.name].values.filter(v=>!isNaN(v));
+      const mn=nAuto(c.min,vv,Math.min),mx=nAuto(c.max,vv,Math.max);
+      const ls=c.logScale&&mn>0&&mx>0;
+      srows+=`<div style="display:flex;justify-content:space-between;font-size:9px;font-family:var(--mono);color:${c.color}">
+        <span>${ls?fmtL(mn):fmt(mn)}</span><span style="font-weight:700">${c.name}</span><span>${ls?fmtL(mx):fmt(mx)}</span></div>`;
+    });
+    thdr.innerHTML=srows;tw.appendChild(thdr);
+    const tc=mkCanvas(TW,plotH);tw.appendChild(tc);
+    cont.appendChild(tw);
+    drawTrack(tc,well,track,depthArr,minD,maxD,pxPerM);
+  });
+
+  plotArea.appendChild(cont);
+  document.getElementById('mainTb').style.display='flex';
+  document.getElementById('tbInfo').textContent=`${well.hdr.well}  ·  ${minD.toFixed(0)}–${maxD.toFixed(0)} м`;
+
+}
+
+function mkWrap(w){
+  const d=document.createElement('div');
+  d.style.cssText=`width:${w}px;flex:0 0 ${w}px;display:flex;flex-direction:column;border-right:1px solid var(--border)`;
+  return d;
+}
+function mkHdr(w,title,sub){
+  const d=document.createElement('div');
+  d.style.cssText=`padding:4px 5px;border-bottom:1px solid var(--border);background:var(--surf2);flex-shrink:0;height:${HEADER_H}px;display:flex;flex-direction:column;align-items:center;justify-content:center`;
+  d.innerHTML=`<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--mono)">${title}</div>
+    <div style="font-size:9px;color:var(--faint);font-family:var(--mono)">${sub}</div>`;
+  return d;
+}
+function mkCanvas(w,h){
+  const c=document.createElement('canvas');
+  c.width=w;c.height=h;c.style.width=w+'px';c.style.height=h+'px';return c;
+}
+
+/* ── CORE TRACK ─────────────────────────────────────────── */
+function drawCoreTrack(canvas,minD,maxD,pxPerM){
+  const ctx=canvas.getContext('2d'),W=canvas.width,H=canvas.height;
+  const dk=document.documentElement.dataset.theme==='dark';
+  ctx.fillStyle=dk?'#0f0e0c':'#f7f6f2';ctx.fillRect(0,0,W,H);
+  if(!S.coreImg)return;
+  const y1=(S.coreImg.top-minD)*pxPerM,y2=(S.coreImg.bot-minD)*pxPerM;
+  const imgH=Math.max(1,y2-y1);
+  const img=new Image();
+  img.onload=()=>{ctx.drawImage(img,0,Math.max(0,y1),W,imgH);};
+  img.src=S.coreImg.dataURL;
+}
+
+/* ── DEPTH AXIS ─────────────────────────────────────────── */
+function drawDepthAxis(canvas,minD,maxD,pxPerM){
+  const ctx=canvas.getContext('2d'),W=canvas.width,H=canvas.height;
+  const dk=document.documentElement.dataset.theme==='dark';
+  const tc=dk?'#797876':'#7a7974';
+  const gc=dk?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.05)';
+  const mc=dk?'rgba(255,255,255,0.12)':'rgba(0,0,0,0.10)';
+  ctx.fillStyle=dk?'#0f0e0c':'#f7f6f2';ctx.fillRect(0,0,W,H);
+  const first5=Math.ceil(minD/5)*5;
+  ctx.font='9px "JetBrains Mono",monospace';ctx.textAlign='right';
+  for(let d=first5;d<=maxD+.01;d+=5){
+    const y=(d-minD)*pxPerM;if(y<0||y>H+2)continue;
+    const i10=Math.round(d)%10===0,i50=Math.round(d)%50===0;
+    ctx.strokeStyle=i50?mc:gc;ctx.lineWidth=i50?.8:.4;
+    ctx.beginPath();ctx.moveTo(W,y);ctx.lineTo(W+10000,y);ctx.stroke();
+    ctx.strokeStyle=i50?mc:gc;ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(W-5,y);ctx.lineTo(W,y);ctx.stroke();
+    if(i10){ctx.fillStyle=tc;ctx.fillText(d.toFixed(0),W-7,y-2);}
+  }
+  ctx.strokeStyle=dk?'rgba(255,255,255,.09)':'rgba(0,0,0,.09)';
+  ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(W-.5,0);ctx.lineTo(W-.5,H);ctx.stroke();
+}
+
+/* ── DRAW TRACK ─────────────────────────────────────────── */
+function drawTrack(canvas,well,track,depthArr,minD,maxD,pxPerM){
+  const ctx=canvas.getContext('2d'),W=canvas.width,H=canvas.height;
+  const dk=document.documentElement.dataset.theme==='dark';
+  const gc=dk?'rgba(255,255,255,.04)':'rgba(0,0,0,.04)';
+  const mc=dk?'rgba(255,255,255,.09)':'rgba(0,0,0,.08)';
+  ctx.fillStyle=dk?'#0f0e0c':'#f7f6f2';ctx.fillRect(0,0,W,H);
+
+  // Reservoir fills
+  if(document.getElementById('chkRes').checked){
+    S.reservoirs.forEach(res=>{
+      const y1=(res.top-minD)*pxPerM,y2=(res.bot-minD)*pxPerM;
+      if(y2<0||y1>H)return;
+      ctx.fillStyle=satColor(res.type||'oil',0.30);
+      ctx.fillRect(0,Math.max(0,y1),W,Math.min(H,y2)-Math.max(0,y1));
+    });
+  }
+
+  // Grid lines every 5m
+  const first5=Math.ceil(minD/5)*5;
+  for(let d=first5;d<=maxD;d+=5){
+    const y=(d-minD)*pxPerM;if(y<0||y>H)continue;
+    const i50=Math.round(d)%50===0;
+    ctx.strokeStyle=i50?mc:gc;ctx.lineWidth=i50?.7:.3;
+    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();
+  }
+  // Vertical dividers (5 cols)
+  ctx.strokeStyle=gc;ctx.lineWidth=.3;
+  for(let i=1;i<5;i++){const x=W/5*i;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+
+  // Draw each curve
+  track.curves.forEach(c=>{
+    if(!c.name||!well.curves[c.name])return;
+    const vals=well.curves[c.name].values;
+    const vv=vals.filter(v=>!isNaN(v));if(!vv.length)return;
+    const useMin=nAuto(c.min,vv,Math.min),useMax=nAuto(c.max,vv,Math.max);
+    const rng=useMax-useMin||1;
+    const logScale=c.logScale&&useMin>0&&useMax>0;
+    const logMin=logScale?Math.log10(useMin):0;
+    const logMax=logScale?Math.log10(useMax):0;
+    const logRng=logMax-logMin||1;
+
+    function toX(v){
+      if(isNaN(v)||v===null)return null;
+      if(logScale){if(v<=0)return null;return((Math.log10(v)-logMin)/logRng)*W;}
+      return((v-useMin)/rng)*W;
+    }
+
+    ctx.strokeStyle=c.color;ctx.lineWidth=1.5;ctx.lineJoin='round';ctx.beginPath();
+    let inP=false;
+    for(let i=0;i<depthArr.length;i++){
+      const d=depthArr[i];
+      if(isNaN(d)||d<minD-0.01||d>maxD+0.01){inP=false;continue;}
+      const v=vals[i];
+      if(isNaN(v)||v===null){inP=false;continue;}
+      const x=toX(v);if(x===null||isNaN(x)){inP=false;continue;}
+      const y=(d-minD)*pxPerM;
+      const cx=Math.max(0,Math.min(W,x));
+      if(!inP){ctx.moveTo(cx,y);inP=true;}
+      else ctx.lineTo(cx,y);
+    }
+    ctx.stroke();
+  });
+}
+
+/* ── LEGEND ─────────────────────────────────────────────── */
+function renderLegend(){
+  const li=document.getElementById('legendItems');li.innerHTML='';
+  S.reservoirs.forEach(res=>{
+    const d=document.createElement('div');d.className='leg-it';
+    d.innerHTML=`<div class="leg-bx" style="background:${satColor(res.type||'oil',0.55)}"></div><span>${res.top}–${res.bot}м (${SAT[res.type||'oil'].label})</span>`;
+    li.appendChild(d);
+  });
+  S.tracks.flatMap(t=>t.curves).forEach(c=>{
+    if(!c.name)return;
+    const d=document.createElement('div');d.className='leg-it';
+    d.innerHTML=`<div class="leg-ln" style="background:${c.color}"></div><span>${c.name}</span>`;
+    li.appendChild(d);
+  });
+}
+
+/* ── EXPORT PNG ─────────────────────────────────────────── */
+function exportPNG(){
+  if(!S.activeWell){toast('⚠ Нет скважины');return;}
+  const p=getPlotParams();if(!p)return;
+  const{well,depthArr,minD,maxD,pxPerM,plotH}=p;
+  const dk=document.documentElement.dataset.theme==='dark';
+  const bg=dk?'#0f0e0c':'#f7f6f2',sc=dk?'#171614':'#f0eeea',bc=dk?'#2a2927':'#d4d1ca';
+  const tc2=dk?'#cdccca':'#28251d',mc=dk?'#797876':'#7a7974';
+  const HDRH=72,FTRH=36;
+  const tracks=S.tracks.filter(t=>t.curves.some(c=>c.name));
+  const hasCoreW=S.coreImg?CW:0;
+  const totalW=hasCoreW+DW+tracks.length*TW,totalH=HDRH+plotH+FTRH;
+  const off=document.createElement('canvas');off.width=totalW*2;off.height=totalH*2;
+  const ctx=off.getContext('2d');ctx.scale(2,2);
+  ctx.fillStyle=bg;ctx.fillRect(0,0,totalW,totalH);
+  // Title bar
+  ctx.fillStyle=sc;ctx.fillRect(0,0,totalW,HDRH);
+  ctx.strokeStyle=bc;ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(0,HDRH);ctx.lineTo(totalW,HDRH);ctx.stroke();
+  ctx.fillStyle=tc2;ctx.font='bold 13px Inter,sans-serif';ctx.textAlign='left';
+  ctx.fillText('Планшет ГИС — '+well.hdr.well,hasCoreW+DW+6,22);
+  ctx.font='10px "JetBrains Mono",monospace';ctx.fillStyle=mc;
+  ctx.fillText(`${minD.toFixed(0)}–${maxD.toFixed(0)} м  ·  1:${document.getElementById('depthScale').value}  ·  ${tracks.length} треков`,hasCoreW+DW+6,38);
+  ctx.fillText(new Date().toLocaleString('ru-RU'),hasCoreW+DW+6,54);
+  let tx=0;
+  if(S.coreImg){
+    const cc=mkCanvas(CW,plotH);drawCoreTrack(cc,minD,maxD,pxPerM);
+    // async image issue: use timeout trick
+    setTimeout(()=>{ctx.drawImage(cc,0,HDRH);},50);
+    tx+=CW;
+  }
+  const dca=mkCanvas(DW,plotH);drawDepthAxis(dca,minD,maxD,pxPerM);ctx.drawImage(dca,tx,HDRH);tx+=DW;
+  tracks.forEach(track=>{
+    ctx.fillStyle=sc;ctx.fillRect(tx,0,TW,HDRH);
+    ctx.strokeStyle=bc;ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(tx,0);ctx.lineTo(tx,totalH);ctx.stroke();
+    ctx.font='700 9px "JetBrains Mono",monospace';ctx.fillStyle=mc;ctx.textAlign='center';
+    ctx.fillText(track.label,tx+TW/2,15);
+    let hy=27;
+    track.curves.forEach(c=>{
+      if(!c.name||!well.curves[c.name])return;
+      const vv=well.curves[c.name].values.filter(v=>!isNaN(v));
+      const mn=nAuto(c.min,vv,Math.min),mx=nAuto(c.max,vv,Math.max);
+      const ls=c.logScale&&mn>0&&mx>0;
+      ctx.font='9px "JetBrains Mono",monospace';ctx.fillStyle=c.color;
+      ctx.textAlign='left';ctx.fillText(ls?fmtL(mn):fmt(mn),tx+2,hy);
+      ctx.textAlign='center';ctx.fillText(c.name,tx+TW/2,hy);
+      ctx.textAlign='right';ctx.fillText(ls?fmtL(mx):fmt(mx),tx+TW-2,hy);
+      hy+=12;
+    });
+    const tca=mkCanvas(TW,plotH);drawTrack(tca,well,track,depthArr,minD,maxD,pxPerM);
+    ctx.drawImage(tca,tx,HDRH);tx+=TW;
+  });
+  // Footer legend
+  ctx.fillStyle=sc;ctx.fillRect(0,HDRH+plotH,totalW,FTRH);
+  ctx.strokeStyle=bc;ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(0,HDRH+plotH);ctx.lineTo(totalW,HDRH+plotH);ctx.stroke();
+  let lx=hasCoreW+DW+8;
+  S.reservoirs.forEach(res=>{
+    ctx.fillStyle=satColor(res.type||'oil',.55);ctx.fillRect(lx,HDRH+plotH+10,12,10);
+    ctx.font='9px Inter,sans-serif';ctx.fillStyle=mc;ctx.textAlign='left';
+    ctx.fillText(`${res.top}–${res.bot}м (${SAT[res.type||'oil'].label})`,lx+16,HDRH+plotH+19);
+    lx+=120;
+  });
+  setTimeout(()=>{
+    off.toBlob(blob=>{
+      const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+      a.download=`GIS_${well.hdr.well.replace(/\s+/g,'_')}_${Date.now()}.png`;a.click();
+      toast('✓ PNG сохранён');
+    },'image/png');
+  },80);
+}
+
+/* ── HELPERS ─────────────────────────────────────────────── */
+function nAuto(v,arr,fn){if(v!=null&&v!=='')return parseFloat(v);return arr.length?fn(...arr):0;}
+function fmt(v){if(v==null||isNaN(v))return '';const a=Math.abs(v);return a>=1000?v.toFixed(0):a>=10?v.toFixed(1):v.toFixed(2);}
+function fmtL(v){if(!v||v<=0)return '';return '10^'+Math.floor(Math.log10(v));}
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),3500);}
+
+/* ── DROP / FILE INPUT ──────────────────────────────────── */
+const dz=document.getElementById('dropzone'),fi=document.getElementById('fileInput');
+dz.addEventListener('click',()=>fi.click());
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');Array.from(e.dataTransfer.files).filter(f=>f.name.match(/\.las$/i)).forEach(loadFile);});
+fi.addEventListener('change',e=>{Array.from(e.target.files).forEach(loadFile);fi.value='';});
+
+/* ── RENDER / ZOOM / THEME ──────────────────────────────── */
+['depthTop','depthBot','depthScale'].forEach(id=>document.getElementById(id).addEventListener('change',renderPlot));
+
+document.getElementById('btnExport').addEventListener('click',exportPNG);
+document.getElementById('zoomY').addEventListener('input',e=>{
+  S.zoomY=parseFloat(e.target.value);
+  document.getElementById('zoomYVal').textContent='×'+S.zoomY.toFixed(1);renderPlot();
+});
+(()=>{
+  const btn=document.getElementById('btnTheme'),html=document.documentElement;let dark=true;
+  btn.addEventListener('click',()=>{
+    dark=!dark;html.setAttribute('data-theme',dark?'dark':'light');
+    btn.innerHTML=dark?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>':
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>';
+    if(S.activeWell)renderPlot();
+  });
+})();
+
+/* ── DEMO DATA ──────────────────────────────────────────── */
+function makeDemoLAS(wn,sd,n){
+  const h=['~VERSION ---\n  VERS. 2.0:\n  WRAP. NO:\n',
+    `~WELL ---\n  WELL. ${wn}:\n  STRT.M ${sd}:\n  STOP.M ${sd+n*.2}:\n  STEP.M 0.2:\n`,
+    '~CURVES ---\n  DEPT .M:\n  GR   .GAPI:\n  RT   .OHMM:\n  RHOB .G/CC:\n  NPHI .V/V:\n  SP   .MV:\n',
+    '~A ---'];
+  for(let i=0;i<n;i++){
+    const d=sd+i*.2,r1=d>sd+40&&d<sd+80,r2=d>sd+130&&d<sd+170,res=r1||r2;
+    const gr=res?20+Math.random()*30:70+Math.random()*55;
+    const rt=res?30+Math.random()*400:.8+Math.random()*4;
+    const rho=res?2.0+Math.random()*.28:2.55+Math.random()*.18;
+    const nphi=res?.15+Math.random()*.2:.04+Math.random()*.07;
+    const sp=-30+(res?-38:0)+(Math.random()*14-7);
+    h.push([d,gr,rt,rho,nphi,sp].map(v=>v.toFixed(4)).join('  '));
+  }
+  return h.join('\n');
+}
+window.addEventListener('load',()=>{
+  [['demo_1.las','СКВАЖИНА-1',2100,1200],['demo_2.las','СКВАЖИНА-2',2050,900]].forEach(([name,wn,sd,n])=>{
+    const p=parseLAS(makeDemoLAS(wn,sd,n));if(p)S.wells[name]={...p,filename:name};
+  });
+  S.activeWell='demo_1.las';updateFileList();buildDefaultTracks();renderTrackConfig();renderPlot();
+  toast('Демо-скважины загружены. Перетащите свои LAS-файлы!');
+});
+</script>
+</body>
+</html>
